@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>WebAudio FFT Bins & BPM Image Encoder</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: #0a0e17;
+    color: #00f0ff;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+    text-align: center;
+  }
+  h1 { font-size: 18px; margin-bottom: 8px; color: #00f0ff; letter-spacing: 1px; }
+  p.sub { font-size: 11px; color: #8a99ad; margin-bottom: 16px; }
+  
+  #activate-overlay {
+    background: rgba(0, 240, 255, 0.1);
+    border: 2px dashed #00f0ff;
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 380px;
+    cursor: pointer;
+    margin-bottom: 16px;
+    transition: background 0.3s;
+  }
+  #activate-overlay:active { background: rgba(0, 240, 255, 0.25); }
+  
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+    max-width: 380px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: #121824;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .stat-val { font-size: 22px; font-weight: bold; color: #00ff88; }
+  .stat-label { font-size: 10px; color: #8a99ad; margin-top: 2px; }
+
+  canvas {
+    background: #000;
+    border: 1px solid #00f0ff;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 380px;
+    height: 180px;
+    margin-bottom: 12px;
+  }
+
+  .btn {
+    background: #00f0ff;
+    color: #0a0e17;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-family: inherit;
+    cursor: pointer;
+    width: 100%;
+    max-width: 380px;
+    margin-bottom: 12px;
+  }
+
+  #image-output {
+    margin-top: 10px;
+    max-width: 380px;
+    width: 100%;
+    border: 1px solid #00ff88;
+    border-radius: 8px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<h1>WEBAUDIO FFT & BPM ENCODER</h1>
+<p class="sub">TOUCH TO ACTIVATE ANALYZERS & ENCODE SPECTRAL DATA</p>
+
+<div id="activate-overlay" onclick="initWebAudio()" ontouchstart="initWebAudio()">
+  <div style="font-size: 32px; margin-bottom: 8px;">🎙️ / 🎵</div>
+  <div style="font-weight: bold; font-size: 14px;">TOUCH / CLICK TO ACTIVATE</div>
+  <div style="font-size: 10px; color: #8a99ad; margin-top: 4px;">Enables WebAudio API AudioContext & FFT Bins</div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div id="bpm-val" class="stat-val">--</div>
+    <div class="stat-label">DETECTED BPM</div>
+  </div>
+  <div class="stat-card">
+    <div id="fft-peak-val" class="stat-val">0 Hz</div>
+    <div class="stat-label">PEAK FFT FREQ</div>
+  </div>
+</div>
+
+<canvas id="visualizer" width="380" height="180"></canvas>
+
+<button class="btn" onclick="encodeAudioToImage()">ENCODE AUDIO SPECTROGRAM TO IMAGE</button>
+
+<img id="image-output" alt="Encoded Spectrogram PNG">
+
+<script>
+let audioCtx = null;
+let analyser = null;
+let microphone = null;
+let dataArray = null;
+let isActivated = false;
+
+// BPM calculation variables
+let lastBeatTime = 0;
+let beatIntervals = [];
+let currentBpm = 0;
+let spectralHistory = [];
+
+function initWebAudio() {
+  if (isActivated) return;
+  
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  audioCtx = new AudioContext();
+  
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256; // 128 FFT frequency bins
+  
+  const bufferLength = analyser.frequencyBinCount;
+  dataArray = new Uint8Array(bufferLength);
+
+  // Request Microphone or fallback to Synthetic Audio Generator
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(stream => {
+        microphone = audioCtx.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+        isActivated = true;
+        document.getElementById('activate-overlay').style.background = 'rgba(0, 255, 136, 0.15)';
+        document.getElementById('activate-overlay').style.borderColor = '#00ff88';
+        document.getElementById('activate-overlay').innerHTML = '<div style="font-size:14px; color:#00ff88; font-weight:bold;">AUDIO ANALYZER ACTIVE</div>';
+        drawVisualizer();
+      })
+      .catch(err => {
+        setupSyntheticAudio();
+      });
+  } else {
+    setupSyntheticAudio();
+  }
+}
+
+function setupSyntheticAudio() {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+  gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+  osc.connect(gain);
+  gain.connect(analyser);
+  osc.start();
+  isActivated = true;
+  document.getElementById('activate-overlay').innerHTML = '<div style="font-size:12px; color:#ffb700; font-weight:bold;">SYNTHETIC AUDIO GENERATOR ACTIVE</div>';
+  drawVisualizer();
+}
+
+function drawVisualizer() {
+  if (!isActivated) return;
+  requestAnimationFrame(drawVisualizer);
+
+  analyser.getByteFrequencyData(dataArray);
+
+  const canvas = document.getElementById('visualizer');
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+
+  ctx.fillStyle = '#0a0e17';
+  ctx.fillRect(0, 0, width, height);
+
+  const barWidth = (width / dataArray.length) * 1.5;
+  let barX = 0;
+  let maxVal = 0;
+  let maxBin = 0;
+
+  // Record spectral history frame for image encoding
+  const frameCopy = new Uint8Array(dataArray);
+  spectralHistory.push(frameCopy);
+  if (spectralHistory.length > 100) spectralHistory.shift();
+
+  // Simple BPM peak detection on low frequency bass bins
+  let bassEnergy = 0;
+  for (let i = 0; i < 8; i++) {
+    bassEnergy += dataArray[i];
+  }
+  bassEnergy /= 8;
+
+  const now = performance.now();
+  if (bassEnergy > 160 && (now - lastBeatTime) > 300) {
+    if (lastBeatTime > 0) {
+      const interval = now - lastBeatTime;
+      beatIntervals.push(interval);
+      if (beatIntervals.length > 5) beatIntervals.shift();
+      const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
+      currentBpm = Math.round(60000 / avgInterval);
+      document.getElementById('bpm-val').innerText = currentBpm;
+    }
+    lastBeatTime = now;
+  }
+
+  for (let i = 0; i < dataArray.length; i++) {
+    const val = dataArray[i];
+    if (val > maxVal) {
+      maxVal = val;
+      maxBin = i;
+    }
+
+    const barHeight = (val / 255) * height;
+    ctx.fillStyle = `rgb(${val}, ${255 - val}, 240)`;
+    ctx.fillRect(barX, height - barHeight, barWidth - 1, barHeight);
+
+    barX += barWidth;
+  }
+
+  // Display peak frequency
+  const nyquist = audioCtx.sampleRate / 2;
+  const peakFreq = Math.round((maxBin / dataArray.length) * nyquist);
+  document.getElementById('fft-peak-val').innerText = `${peakFreq} Hz`;
+}
+
+function encodeAudioToImage() {
+  if (spectralHistory.length === 0) {
+    alert('Please activate WebAudio first to record audio spectral frames.');
+    return;
+  }
+
+  // Offscreen canvas to encode spectral & BPM history into a readable PNG
+  const encCanvas = document.createElement('canvas');
+  const frameWidth = spectralHistory[0].length;
+  const frameCount = spectralHistory.length;
+  
+  encCanvas.width = frameCount;
+  encCanvas.height = frameWidth;
+  const ctx = encCanvas.getContext('2d');
+
+  const imgData = ctx.createImageData(frameCount, frameWidth);
+
+  for (let x = 0; x < frameCount; x++) {
+    const frame = spectralHistory[x];
+    for (let y = 0; y < frameWidth; y++) {
+      const val = frame[y];
+      const index = (y * frameCount + x) * 4;
+      imgData.data[index] = val;               // Red = FFT Magnitude
+      imgData.data[index + 1] = 255 - val;     // Green = Inverted intensity
+      imgData.data[index + 2] = (currentBpm % 255); // Blue = Embedded BPM metadata
+      imgData.data[index + 3] = 255;           // Alpha = Full opacity
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  const dataUrl = encCanvas.toDataURL('image/png');
+  const outputImg = document.getElementById('image-output');
+  outputImg.src = dataUrl;
+  outputImg.style.display = 'block';
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(err => console.log('SW reg error:', err));
+}
+</script>
+</body>
+</html>
