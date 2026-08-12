@@ -1,4 +1,4 @@
-const CACHE_NAME = 'webaudio-bpm-v1';
+const CACHE_NAME = 'beardsleymobile-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
