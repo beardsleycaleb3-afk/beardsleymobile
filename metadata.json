@@ -1,0 +1,8 @@
+{
+  "name": "Remix CrossAccess Panel",
+  "description": "Multi-scale, multi-scenario cross access control panel with live telemetry, topology canvas, scenario simulations, and AI analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
