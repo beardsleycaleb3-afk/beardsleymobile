@@ -1,6 +1,6 @@
 {
-  "name": "CrossAccess WebAudio Analyzer",
-  "short_name": "WebAudioBPM",
+  "name": "beardsleymobile",
+  "short_name": "beardsleymobile",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
