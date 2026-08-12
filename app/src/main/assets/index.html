@@ -5,96 +5,156 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
-<title>WebAudio FFT Bins & BPM Image Encoder</title>
+<title>Node 018810_APEX WebAudio FFT & DBM Analyzer</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background-color: #0a0e17;
-    color: #00f0ff;
+    background-color: #000000;
+    color: #00ff00;
     font-family: 'Courier New', Courier, monospace;
     display: flex;
     flex-direction: column;
     align-items: center;
     min-height: 100vh;
-    padding: 16px;
+    padding: 12px;
     text-align: center;
+    touch-action: none;
+    overflow-x: hidden;
   }
-  h1 { font-size: 18px; margin-bottom: 8px; color: #00f0ff; letter-spacing: 1px; }
-  p.sub { font-size: 11px; color: #8a99ad; margin-bottom: 16px; }
-  
+
+  .hud-top {
+    width: 100%;
+    max-width: 380px;
+    background: rgba(0, 30, 0, 0.95);
+    border: 1px solid #00ff00;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .hud-hex {
+    font-size: 13px;
+    color: #ffffff;
+    border: 1px solid #00ff00;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 4px;
+    border-radius: 4px;
+    font-weight: bold;
+  }
+
   #activate-overlay {
-    background: rgba(0, 240, 255, 0.1);
-    border: 2px dashed #00f0ff;
-    border-radius: 12px;
-    padding: 24px;
+    background: rgba(0, 255, 0, 0.1);
+    border: 2px dashed #00ff00;
+    border-radius: 10px;
+    padding: 16px;
     width: 100%;
     max-width: 380px;
     cursor: pointer;
-    margin-bottom: 16px;
+    margin-bottom: 10px;
     transition: background 0.3s;
   }
-  #activate-overlay:active { background: rgba(0, 240, 255, 0.25); }
-  
+  #activate-overlay:active { background: rgba(0, 255, 0, 0.25); }
+
   .stats-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
     width: 100%;
     max-width: 380px;
-    margin-bottom: 16px;
+    margin-bottom: 10px;
   }
   .stat-card {
-    background: #121824;
-    border: 1px solid #1e293b;
-    border-radius: 8px;
-    padding: 10px;
+    background: #081408;
+    border: 1px solid #00ff00;
+    border-radius: 6px;
+    padding: 8px 4px;
   }
-  .stat-val { font-size: 22px; font-weight: bold; color: #00ff88; }
-  .stat-label { font-size: 10px; color: #8a99ad; margin-top: 2px; }
+  .stat-val { font-size: 16px; font-weight: bold; color: #00ff88; }
+  .stat-label { font-size: 9px; color: #8a99ad; margin-top: 2px; }
 
   canvas {
     background: #000;
-    border: 1px solid #00f0ff;
+    border: 1px solid #00ff00;
     border-radius: 8px;
     width: 100%;
     max-width: 380px;
     height: 180px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+  }
+
+  .ctrl-row {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
   }
 
   .btn {
-    background: #00f0ff;
-    color: #0a0e17;
+    background: #00ff00;
+    color: #000000;
     border: none;
-    padding: 12px 20px;
-    border-radius: 8px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: bold;
     font-family: inherit;
     cursor: pointer;
-    width: 100%;
-    max-width: 380px;
-    margin-bottom: 12px;
+    flex: 1;
+  }
+  .btn-alt {
+    background: #081408;
+    color: #00ff00;
+    border: 1px solid #00ff00;
   }
 
   #image-output {
     margin-top: 10px;
     max-width: 380px;
     width: 100%;
-    border: 1px solid #00ff88;
+    border: 1px solid #00ff00;
     border-radius: 8px;
     display: none;
+  }
+
+  #ticker {
+    width: 100%;
+    max-width: 380px;
+    height: 50px;
+    background: #040d04;
+    border: 1px solid #004400;
+    border-radius: 6px;
+    color: #00aa00;
+    font-size: 9px;
+    padding: 6px;
+    overflow: hidden;
+    text-align: left;
+    margin-top: 8px;
   }
 </style>
 </head>
 <body>
 
-<h1>WEBAUDIO FFT & BPM ENCODER</h1>
-<p class="sub">TOUCH TO ACTIVATE ANALYZERS & ENCODE SPECTRAL DATA</p>
+<div class="hud-top">
+  <div style="text-align:left;">
+    NODE: 018810_APEX<br>
+    PARITY: DUAL_SYNC<br>
+    BUFF: <span id="count">0</span>/5k
+  </div>
+  <div id="hex_val" class="hud-hex">[0x8810]</div>
+  <div style="text-align:right;">
+    FPS: <span id="fps-val">60</span><br>
+    LOAD: OPTIMAL
+  </div>
+</div>
 
 <div id="activate-overlay" onclick="initWebAudio()" ontouchstart="initWebAudio()">
-  <div style="font-size: 32px; margin-bottom: 8px;">🎙️ / 🎵</div>
-  <div style="font-weight: bold; font-size: 14px;">TOUCH / CLICK TO ACTIVATE</div>
-  <div style="font-size: 10px; color: #8a99ad; margin-top: 4px;">Enables WebAudio API AudioContext & FFT Bins</div>
+  <div style="font-size: 24px; margin-bottom: 4px;">🎙️ / 🎵 / ⚡</div>
+  <div style="font-weight: bold; font-size: 13px;">TOUCH TO ACTIVATE WEBAUDIO & QUAD-PARITY</div>
+  <div style="font-size: 10px; color: #8a99ad; margin-top: 2px;">Enables FFT Bins, BPM Detector & DBM Log Generator</div>
 </div>
 
 <div class="stats-grid">
@@ -106,26 +166,51 @@
     <div id="fft-peak-val" class="stat-val">0 Hz</div>
     <div class="stat-label">PEAK FFT FREQ</div>
   </div>
+  <div class="stat-card">
+    <div id="gap-val" class="stat-val">0 px</div>
+    <div class="stat-label">PARITY GAP</div>
+  </div>
 </div>
 
-<canvas id="visualizer" width="380" height="180"></canvas>
+<canvas id="c" width="380" height="180"></canvas>
 
-<button class="btn" onclick="encodeAudioToImage()">ENCODE AUDIO SPECTROGRAM TO IMAGE</button>
+<div class="ctrl-row">
+  <button class="btn" onclick="encodeAudioToImage()">ENCODE SPECTROGRAM</button>
+  <button class="btn btn-alt" onclick="exportJSON()">EXPORT DBM JSON</button>
+</div>
+
+<div id="ticker">[SYSTEM_BOOT_SUCCESS]</div>
 
 <img id="image-output" alt="Encoded Spectrogram PNG">
 
 <script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hexVal = document.getElementById('hex_val');
+const countDisp = document.getElementById('count');
+const ticker = document.getElementById('ticker');
+
+let w = canvas.width = 380;
+let h = canvas.height = 180;
+let frames = 0;
+let dataLog = [];
 let audioCtx = null;
 let analyser = null;
 let microphone = null;
 let dataArray = null;
 let isActivated = false;
 
-// BPM calculation variables
 let lastBeatTime = 0;
 let beatIntervals = [];
 let currentBpm = 0;
 let spectralHistory = [];
+
+function addTickerEvent(msg) {
+  let d = document.createElement('div');
+  d.innerText = `[${frames}] ${msg}`;
+  ticker.prepend(d);
+  if (ticker.childNodes.length > 5) ticker.lastChild.remove();
+}
 
 function initWebAudio() {
   if (isActivated) return;
@@ -138,22 +223,21 @@ function initWebAudio() {
   }
 
   analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256; // 128 FFT frequency bins
+  analyser.fftSize = 256;
   
   const bufferLength = analyser.frequencyBinCount;
   dataArray = new Uint8Array(bufferLength);
 
-  // Request Microphone or fallback to Synthetic Audio Generator
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       .then(stream => {
         microphone = audioCtx.createMediaStreamSource(stream);
         microphone.connect(analyser);
         isActivated = true;
-        document.getElementById('activate-overlay').style.background = 'rgba(0, 255, 136, 0.15)';
         document.getElementById('activate-overlay').style.borderColor = '#00ff88';
-        document.getElementById('activate-overlay').innerHTML = '<div style="font-size:14px; color:#00ff88; font-weight:bold;">AUDIO ANALYZER ACTIVE</div>';
-        drawVisualizer();
+        document.getElementById('activate-overlay').innerHTML = '<div style="font-size:12px; color:#00ff88; font-weight:bold;">WEBAUDIO & QUAD-PARITY LOGGERS ACTIVE</div>';
+        addTickerEvent("WEBAUDIO_MIC_STREAM_ACTIVE");
+        loop();
       })
       .catch(err => {
         setupSyntheticAudio();
@@ -173,90 +257,134 @@ function setupSyntheticAudio() {
   gain.connect(analyser);
   osc.start();
   isActivated = true;
-  document.getElementById('activate-overlay').innerHTML = '<div style="font-size:12px; color:#ffb700; font-weight:bold;">SYNTHETIC AUDIO GENERATOR ACTIVE</div>';
-  drawVisualizer();
+  document.getElementById('activate-overlay').innerHTML = '<div style="font-size:12px; color:#ffb700; font-weight:bold;">SYNTHETIC GENERATOR ACTIVE</div>';
+  addTickerEvent("SYNTHETIC_AUDIO_SYNTH_ACTIVE");
+  loop();
 }
 
-function drawVisualizer() {
-  if (!isActivated) return;
-  requestAnimationFrame(drawVisualizer);
-
-  analyser.getByteFrequencyData(dataArray);
-
-  const canvas = document.getElementById('visualizer');
-  const ctx = canvas.getContext('2d');
-  const width = canvas.width;
-  const height = canvas.height;
-
-  ctx.fillStyle = '#0a0e17';
-  ctx.fillRect(0, 0, width, height);
-
-  const barWidth = (width / dataArray.length) * 1.5;
-  let barX = 0;
-  let maxVal = 0;
-  let maxBin = 0;
-
-  // Record spectral history frame for image encoding
-  const frameCopy = new Uint8Array(dataArray);
-  spectralHistory.push(frameCopy);
-  if (spectralHistory.length > 100) spectralHistory.shift();
-
-  // Simple BPM peak detection on low frequency bass bins
-  let bassEnergy = 0;
-  for (let i = 0; i < 8; i++) {
-    bassEnergy += dataArray[i];
+function runApexLogger(x, y, dx = 0, dy = 0) {
+  let mx = w - x;
+  let my = h - y;
+  
+  if (dataLog.length < 5000) {
+    dataLog.push({
+      timestamp: Date.now(),
+      coords: { x, y },
+      mirror: { mx, my },
+      hex: `0x${Math.floor(x + y).toString(16).toUpperCase()}`,
+      bpm: currentBpm
+    });
+    countDisp.innerText = dataLog.length;
   }
-  bassEnergy /= 8;
 
-  const now = performance.now();
-  if (bassEnergy > 160 && (now - lastBeatTime) > 300) {
-    if (lastBeatTime > 0) {
-      const interval = now - lastBeatTime;
-      beatIntervals.push(interval);
-      if (beatIntervals.length > 5) beatIntervals.shift();
-      const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
-      currentBpm = Math.round(60000 / avgInterval);
-      document.getElementById('bpm-val').innerText = currentBpm;
+  hexVal.innerText = `[0x${Math.floor(x).toString(16).toUpperCase()}]`;
+  let gap = Math.abs(x - mx).toFixed(0);
+  document.getElementById('gap-val').innerText = `${gap} px`;
+
+  // Draw Quadrant Symmetry Lines
+  ctx.strokeStyle = "rgba(0, 255, 136, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(mx, y);
+  ctx.moveTo(x, y); ctx.lineTo(x, my);
+  ctx.stroke();
+
+  // Pulsing Seed Nodes
+  let pulse = 4 + Math.sin(frames * 0.2) * 2;
+  ctx.fillStyle = "#00ff00"; ctx.fillRect(x - pulse, y - pulse, pulse * 2, pulse * 2);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(mx - pulse, y - pulse, pulse * 2, pulse * 2);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(x - pulse, my - pulse, pulse * 2, pulse * 2);
+  ctx.fillStyle = "#00ff00"; ctx.fillRect(mx - pulse, my - pulse, pulse * 2, pulse * 2);
+}
+
+function loop() {
+  frames++;
+  requestAnimationFrame(loop);
+
+  ctx.fillStyle = "rgba(0, 10, 0, 0.25)";
+  ctx.fillRect(0, 0, w, h);
+
+  if (analyser && dataArray) {
+    analyser.getByteFrequencyData(dataArray);
+
+    const barWidth = (w / dataArray.length) * 1.5;
+    let barX = 0;
+    let maxVal = 0;
+    let maxBin = 0;
+
+    const frameCopy = new Uint8Array(dataArray);
+    spectralHistory.push(frameCopy);
+    if (spectralHistory.length > 100) spectralHistory.shift();
+
+    let bassEnergy = 0;
+    for (let i = 0; i < 8; i++) {
+      bassEnergy += dataArray[i];
     }
-    lastBeatTime = now;
-  }
+    bassEnergy /= 8;
 
-  for (let i = 0; i < dataArray.length; i++) {
-    const val = dataArray[i];
-    if (val > maxVal) {
-      maxVal = val;
-      maxBin = i;
+    const now = performance.now();
+    if (bassEnergy > 160 && (now - lastBeatTime) > 300) {
+      if (lastBeatTime > 0) {
+        const interval = now - lastBeatTime;
+        beatIntervals.push(interval);
+        if (beatIntervals.length > 5) beatIntervals.shift();
+        const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
+        currentBpm = Math.round(60000 / avgInterval);
+        document.getElementById('bpm-val').innerText = currentBpm;
+      }
+      lastBeatTime = now;
     }
 
-    const barHeight = (val / 255) * height;
-    ctx.fillStyle = `rgb(${val}, ${255 - val}, 240)`;
-    ctx.fillRect(barX, height - barHeight, barWidth - 1, barHeight);
+    for (let i = 0; i < dataArray.length; i++) {
+      const val = dataArray[i];
+      if (val > maxVal) {
+        maxVal = val;
+        maxBin = i;
+      }
 
-    barX += barWidth;
+      const barHeight = (val / 255) * h;
+      ctx.fillStyle = `rgb(${val}, ${255 - val}, 200)`;
+      ctx.fillRect(barX, h - barHeight, barWidth - 1, barHeight);
+
+      barX += barWidth;
+    }
+
+    const nyquist = audioCtx.sampleRate / 2;
+    const peakFreq = Math.round((maxBin / dataArray.length) * nyquist);
+    document.getElementById('fft-peak-val').innerText = `${peakFreq} Hz`;
   }
+}
 
-  // Display peak frequency
-  const nyquist = audioCtx.sampleRate / 2;
-  const peakFreq = Math.round((maxBin / dataArray.length) * nyquist);
-  document.getElementById('fft-peak-val').innerText = `${peakFreq} Hz`;
+function exportJSON() {
+  if (dataLog.length === 0) {
+    alert("Touch or move across canvas to record DBM 018810 telemetry data first.");
+    return;
+  }
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataLog, null, 2));
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.setAttribute("href", dataStr);
+  downloadAnchor.setAttribute("download", "018810_logic_dump.json");
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+  addTickerEvent(`EXPORTED_${dataLog.length}_LOGS`);
 }
 
 function encodeAudioToImage() {
   if (spectralHistory.length === 0) {
-    alert('Please activate WebAudio first to record audio spectral frames.');
+    alert('Please activate WebAudio first to record spectral frames.');
     return;
   }
 
-  // Offscreen canvas to encode spectral & BPM history into a readable PNG
   const encCanvas = document.createElement('canvas');
   const frameWidth = spectralHistory[0].length;
   const frameCount = spectralHistory.length;
   
   encCanvas.width = frameCount;
   encCanvas.height = frameWidth;
-  const ctx = encCanvas.getContext('2d');
+  const encCtx = encCanvas.getContext('2d');
 
-  const imgData = ctx.createImageData(frameCount, frameWidth);
+  const imgData = encCtx.createImageData(frameCount, frameWidth);
 
   for (let x = 0; x < frameCount; x++) {
     const frame = spectralHistory[x];
@@ -265,18 +393,28 @@ function encodeAudioToImage() {
       const index = (y * frameCount + x) * 4;
       imgData.data[index] = val;               // Red = FFT Magnitude
       imgData.data[index + 1] = 255 - val;     // Green = Inverted intensity
-      imgData.data[index + 2] = (currentBpm % 255); // Blue = Embedded BPM metadata
+      imgData.data[index + 2] = (currentBpm % 255); // Blue = Embedded BPM
       imgData.data[index + 3] = 255;           // Alpha = Full opacity
     }
   }
 
-  ctx.putImageData(imgData, 0, 0);
+  encCtx.putImageData(imgData, 0, 0);
 
   const dataUrl = encCanvas.toDataURL('image/png');
   const outputImg = document.getElementById('image-output');
   outputImg.src = dataUrl;
   outputImg.style.display = 'block';
+  addTickerEvent("ENCODED_SPECTROGRAM_IMAGE");
 }
+
+canvas.addEventListener('pointermove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  if (x >= 0 && x <= w && y >= 0 && y <= h) {
+    runApexLogger(x, y, e.movementX || 0, e.movementY || 0);
+  }
+});
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(err => console.log('SW reg error:', err));
